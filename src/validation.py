@@ -1,8 +1,12 @@
+from sqlmodel import Field, SQLModel
 
-from pydantic import BaseModel, AfterValidator, ValidationError
-from sqlmodel import Field, SQLModel, Session, create_engine, select
+class UserBase(SQLModel):
+    username: str = Field(min_length=5)
+    password: str = Field(min_length=6)
 
-class User(SQLModel, table = True):
-    id: int | None = Field(default = None, primary_key=True)
-    username: str = Field(min_length = 5)
-    password: str = Field(min_length = 8)   
+#this model will sent to the database
+class User(UserBase, table=True):
+    id: int | None = Field(default = None, primary_key = True)
+
+class UserCreate(UserBase):
+    pass
