@@ -1,11 +1,15 @@
+from fastapi import HTTPException
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi.param_functions import Depends
 from sqlalchemy.sql.annotation import Annotated
+from sqlalchemy.sql.coercions import expect
+from typing_extensions import Any
 from src.validation import *
 from src.database import *
 from passlib.hash import pbkdf2_sha256 # type: ignore
 from datetime import datetime, timedelta
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 
 router = APIRouter(prefix="/user", tags=["Users"])
@@ -25,6 +29,8 @@ async def create_user(user: UserCreate):
         session.commit() #Sends and commits all pending operations(inserts, updates, deletes) to the database
         session.refresh(db_user) #Synchronizes the obejct with the latest state of the data base
     return user
+    
+KEY = "kfladckmdfniewpeofmjncdvkslsdfkasdgnsdfs"
 
 @router.post("/login")
 async def user_login(user: UserCreate):
@@ -40,9 +46,41 @@ async def user_login(user: UserCreate):
             "sub": user.username,
             "exp": datetime.utcnow() + timedelta(minutes=30)
         }
-        key = "kfladckmdfniewpeofmjncdvkslsdfkasdgnsdfs"
-        token = jwt.encode(payload, key, algorithm = "HS256")
+        
+        token = jwt.encode(payload, KEY, algorithm = "HS256")
 
         return token
+        
+security = HTTPBearer()
+async def get_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
 
-dependency = Annotated[dict, Depends(user_login)]
+    try:
+        payload = jwt.decode(token, KEY, algorithms=["HS256"])
+        username = payload.get("sub")
+
+        if username is None:
+            raise HTTPException(status_code = 401, detail= "Invalid token")
+    except Exception:
+            raise HTTPException(status_code=401, detail="Token expirado ou inválido")
+
+    with Session(engine) as session:
+        db_user = session.scalars(select(User).where(User.username == username)).first()
+        if db_user is None:
+            raise HTTPException(status_code= 400, detail= "Username not found!")
+
+        return db_user
+        
+dependency = Annotated[Any, Depends(user_login)]
+
+@router.post("/tasks")
+async def create_task(task: TaskBase, commons: User = Depends(get_user)):
+    with Session(engine) as session:
+       db_task = Task.model_validate(task, update= {"user_id": commons.id})
+
+       session.add(db_task)
+       session.commit()
+       session.refresh(db_task)
+
+       return db_task
+    

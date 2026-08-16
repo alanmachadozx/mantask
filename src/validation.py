@@ -16,7 +16,8 @@ class UserCreate(UserBase):
 class TaskBase(SQLModel):
     title: str
     description: str
-    limit_date: date | None
+    limit_date: date | None = None
 
 class Task(TaskBase, table = True):
     id: int | None = Field(default = None, primary_key= True)
+    user_id: int = Field(foreign_key= "user.id")
