@@ -23,7 +23,7 @@ async def create_user(user: UserCreate):
         if repeat_user is not None:
             raise HTTPException(status_code= 400, detail= "The username already exists")
 
-        db_user.password = pbkdf2_sha256.hash(user.password)
+        db_user.password = pbkdf2_sha256.hash(user.password) #password hash
         
         session.add(db_user) #Resisters an intention to insert or modify
         session.commit() #Sends and commits all pending operations(inserts, updates, deletes) to the database
@@ -53,7 +53,7 @@ async def user_login(user: UserCreate):
         
 security = HTTPBearer()
 async def get_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
+    token = credentials.credentials #select just the token
 
     try:
         payload = jwt.decode(token, KEY, algorithms=["HS256"])
@@ -71,7 +71,7 @@ async def get_user(credentials: HTTPAuthorizationCredentials = Depends(security)
 
         return db_user
         
-dependency = Annotated[Any, Depends(user_login)]
+dependency = Annotated[Any, Depends(user_login)] # login dependency to execute tasks actions
 
 @router.post("/tasks")
 async def create_task(task: TaskBase, commons: User = Depends(get_user)):
@@ -83,4 +83,20 @@ async def create_task(task: TaskBase, commons: User = Depends(get_user)):
        session.refresh(db_task)
 
        return db_task
-    
+
+@router.get("/tasks")  
+async def show_tasks(current: User = Depends(get_user)):
+    with Session(engine) as session:
+        tasks = session.scalars(select(Task).where(Task.user_id == current.id)).all()
+        return tasks
+
+@router.delete("/tasks/{tasks_id}")
+async def delete_task(tasks_id: int, current: User = Depends(get_user)):
+    with Session(engine) as session:
+        current_tasks = session.scalars(select(Task).where(Task.user_id == current.id, Task.id == tasks_id)).first()
+
+        if current_tasks is None:
+            raise HTTPException(status_code= 404, detail= "Task not found!")
+
+        session.delete(current_tasks)
+        session.commit()
