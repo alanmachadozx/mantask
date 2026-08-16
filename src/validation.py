@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlmodel import Field, SQLModel
 
 class UserBase(SQLModel):
@@ -10,3 +12,11 @@ class User(UserBase, table=True):
 
 class UserCreate(UserBase):
     pass
+
+class TaskBase(SQLModel):
+    title: str
+    description: str
+    limit_date: date | None
+
+class Task(TaskBase, table = True):
+    id: int | None = Field(default = None, primary_key= True)
